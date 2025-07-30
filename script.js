@@ -2,7 +2,7 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
 let sortByPerCapita = false;
 let statePopulations = {};
-let cachedData2023 = []; // Cache for 2023 data
+let cachedData2023 = [];
 
 Promise.all([
     d3.csv("accident.csv"),
@@ -12,7 +12,7 @@ Promise.all([
         statePopulations[d.NAME] = +d.POPESTIMATE2023;
     });
 
-    // Filter for 2023 only, cover both string and int
+    // Filter for 2023, cover both string and int
     cachedData2023 = accidentData.filter(d => d.YEAR === "2023" || d.YEAR === 2023);
 
     drawBarChart(cachedData2023);
@@ -208,12 +208,10 @@ function drawUSMap(fatalitiesByState) {
 
         texts.exit().remove();
 
-        // Optional: Add a color legend
         drawColorLegend(svg, color, maxVal);
     });
 }
 
-// Optional: Draw a color legend for the map
 function drawColorLegend(svg, color, maxVal) {
     const legendWidth = 200, legendHeight = 10, x = 550, y = 470;
     const defs = svg.append("defs");
