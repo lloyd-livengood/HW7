@@ -71,7 +71,7 @@ function drawSimpleChart(data) {
     const svg = d3.select("#bar-chart");
     svg.selectAll("*").remove();
     
-    const width = 600, height = 300, margin = {top: 20, right: 20, bottom: 50, left: 50};
+    const width = 600, height = 300, margin = {top: 20, right: 20, bottom: 80, left: 50};
     
     const x = d3.scaleBand()
         .domain(fatalitiesByState.map(d => d[0]))
@@ -85,20 +85,48 @@ function drawSimpleChart(data) {
     
     console.log("Scales created");
     
-    // Draw bars
-    svg.selectAll("rect")
-        .data(fatalitiesByState)
-        .enter()
-        .append("rect")
-        .attr("class", "bar-rect") // Add class for hover functionality
+    // Draw bars with transitions
+    const bars = svg.selectAll(".bar-rect")
+        .data(fatalitiesByState, d => d[0]); // Use key function for data binding
+    
+    // Handle exiting bars
+    bars.exit()
+        .transition()
+        .duration(1000)
+        .attr("y", y(0))
+        .attr("height", 0)
+        .remove();
+    
+    // Handle updating bars
+    bars.transition()
+        .duration(1000)
         .attr("x", d => x(d[0]))
         .attr("y", d => y(d[1]))
         .attr("width", x.bandwidth())
-        .attr("height", d => y(0) - y(d[1]))
-        .attr("fill", "steelblue");
+        .attr("height", d => y(0) - y(d[1]));
     
-    // Add basic axes
+    // Handle entering bars
+    bars.enter()
+        .append("rect")
+        .attr("class", "bar-rect")
+        .attr("x", d => x(d[0]))
+        .attr("width", x.bandwidth())
+        .attr("y", y(0))
+        .attr("height", 0)
+        .attr("fill", "steelblue")
+        .transition()
+        .duration(1000)
+        .attr("y", d => y(d[1]))
+        .attr("height", d => y(0) - y(d[1]));
+    
+    // Add/update axes with transitions
     console.log("Adding axes...");
+    
+    // Remove existing axes to avoid duplication
+    svg.selectAll(".x-axis").remove();
+    svg.selectAll(".y-axis").remove();
+    
+    // Add X-axis
     svg.append("g")
         .attr("class", "x-axis")
         .attr("transform", `translate(0,${height - margin.bottom})`)
@@ -106,25 +134,39 @@ function drawSimpleChart(data) {
         .selectAll("text").remove(); // We'll add custom labels
     console.log("X-axis added");
     
+    // Add Y-axis with transition
     svg.append("g")
         .attr("class", "y-axis")
         .attr("transform", `translate(${margin.left},0)`)
+        .transition()
+        .duration(1000)
         .call(d3.axisLeft(y));
     console.log("Y-axis added");
     
-    // Add rotated state labels
-    svg.selectAll(".state-label")
-        .data(fatalitiesByState)
-        .enter()
+    // Add/update rotated state labels with transitions
+    svg.selectAll(".state-label").remove(); // Remove existing labels
+    
+    const labels = svg.selectAll(".state-label")
+        .data(fatalitiesByState, d => d[0]);
+    
+    labels.enter()
         .append("text")
         .attr("class", "state-label")
         .attr("x", d => x(d[0]) + x.bandwidth() / 2)
         .attr("y", height - margin.bottom + 15)
         .attr("text-anchor", "end")
-        .attr("font-size", "10px")
-        .attr("fill", "#333")
+        .attr("font-size", "11px")
+        .attr("fill", "#000")
+        .attr("font-family", "sans-serif")
         .attr("transform", d => `rotate(-45, ${x(d[0]) + x.bandwidth() / 2}, ${height - margin.bottom + 15})`)
-        .text(d => d[0]);
+        .text(d => d[0])
+        .merge(labels)
+        .transition()
+        .duration(1000)
+        .attr("x", d => x(d[0]) + x.bandwidth() / 2)
+        .attr("transform", d => `rotate(-45, ${x(d[0]) + x.bandwidth() / 2}, ${height - margin.bottom + 15})`);
+    
+    labels.exit().remove();
     console.log("State labels added");
     
     console.log("Chart completed successfully!");
