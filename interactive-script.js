@@ -1,76 +1,58 @@
-console.log("Starting simple script v2...");
-
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
-
-console.log("D3 imported");
 
 let sortByPerCapita = false;
 let statePopulations = {};
 let cachedData2023 = [];
 
-console.log("Variables initialized");
-
 Promise.all([
     d3.csv("accident.csv"),
     d3.csv("population.csv")
 ]).then(([accidentData, popData]) => {
-    console.log("Data loaded, processing...");
-    
     // Build population lookup
     popData.filter(d => d.SUMLEV === "040").forEach(d => {
         statePopulations[d.NAME] = +d.POPESTIMATE2023;
     });
-    
-    console.log("Population data processed:", Object.keys(statePopulations).length, "states");
 
     // Filter 2023 data
     cachedData2023 = accidentData.filter(d => d.YEAR === "2023" || d.YEAR === 2023);
-    console.log("2023 data filtered:", cachedData2023.length, "records");
 
-    // Create basic visualization without transitions
-    drawSimpleChart(cachedData2023);
+    drawInteractiveChart(cachedData2023);
     
 }).catch(error => {
     console.error("Error loading data:", error);
 });
 
-function drawSimpleChart(data) {
-    console.log("Drawing simple chart...");
-    
-    // Group data
+function drawInteractiveChart(data) {
+    // Group and aggregate fatality data by state
     let fatalitiesByState = d3.rollups(
         data,
-        v => d3.sum(v, d => +d.FATALS || 0), // Handle missing values
+        v => d3.sum(v, d => +d.FATALS || 0),
         d => d.STATENAME
     );
     
-    console.log("Data grouped, first 3:", fatalitiesByState.slice(0, 3));
-    
-    // Apply per capita if needed
+    // Apply per capita calculation if toggled
     if (sortByPerCapita) {
-        console.log("Applying per capita...");
         fatalitiesByState = fatalitiesByState.map(([state, total]) => {
-            const pop = statePopulations[state] || 1; // Avoid division by zero
+            const pop = statePopulations[state] || 1;
             return [state, (total / pop) * 100000];
         });
     }
     
-    // Sort
+    // Sort by value descending
     fatalitiesByState.sort((a, b) => d3.descending(a[1], b[1]));
     
-    // Check for NaN
+    // Validate data
     const badData = fatalitiesByState.filter(([state, value]) => !isFinite(value));
     if (badData.length > 0) {
         console.error("Bad data found:", badData);
         return;
     }
     
-    console.log("Data is clean, drawing chart...");
-    
-    // Simple chart
+    // Bar chart
     const svg = d3.select("#bar-chart");
     svg.selectAll("*").remove();
     
+    // Create interactive bar chart
     const width = 600, height = 300, margin = {top: 20, right: 20, bottom: 80, left: 50};
     
     const x = d3.scaleBand()
@@ -82,8 +64,6 @@ function drawSimpleChart(data) {
         .domain([0, d3.max(fatalitiesByState, d => d[1])])
         .nice()
         .range([height - margin.bottom, margin.top]);
-    
-    console.log("Scales created");
     
     // Draw bars with transitions
     const bars = svg.selectAll(".bar-rect")
@@ -119,32 +99,27 @@ function drawSimpleChart(data) {
         .attr("y", d => y(d[1]))
         .attr("height", d => y(0) - y(d[1]));
     
-    // Add/update axes with transitions
-    console.log("Adding axes...");
-    
-    // Remove existing axes to avoid duplication
+    // Add chart axes with smooth transitions
     svg.selectAll(".x-axis").remove();
     svg.selectAll(".y-axis").remove();
     
-    // Add X-axis
+    // X-axis (state names will be added as rotated labels)
     svg.append("g")
         .attr("class", "x-axis")
         .attr("transform", `translate(0,${height - margin.bottom})`)
         .call(d3.axisBottom(x))
-        .selectAll("text").remove(); // We'll add custom labels
-    console.log("X-axis added");
+        .selectAll("text").remove();
     
-    // Add Y-axis with transition
+    // Y-axis with animated transitions
     svg.append("g")
         .attr("class", "y-axis")
         .attr("transform", `translate(${margin.left},0)`)
         .transition()
         .duration(1000)
         .call(d3.axisLeft(y));
-    console.log("Y-axis added");
     
-    // Add/update rotated state labels with transitions
-    svg.selectAll(".state-label").remove(); // Remove existing labels
+    // Add rotated state labels with fade transitions
+    svg.selectAll(".state-label").remove();
     
     const labels = svg.selectAll(".state-label")
         .data(fatalitiesByState, d => d[0]);
@@ -167,34 +142,25 @@ function drawSimpleChart(data) {
         .attr("transform", d => `rotate(-45, ${x(d[0]) + x.bandwidth() / 2}, ${height - margin.bottom + 15})`);
     
     labels.exit().remove();
-    console.log("State labels added");
     
-    console.log("Chart completed successfully!");
-    
-    // Draw map
-    console.log("About to call drawMap...");
-    drawMap(fatalitiesByState);
+    // Draw interactive choropleth map
+    drawInteractiveMap(fatalitiesByState);
 }
 
-function drawMap(fatalitiesByState) {
-    console.log("Drawing map...");
-    
+function drawInteractiveMap(fatalitiesByState) {
     d3.json("states.json").then(us => {
-        console.log("Map data loaded");
         
         const svg = d3.select("#us-map");
         svg.selectAll("*").remove();
         
-        // Create value lookup
+        // Create value lookup and color scale
         const valueMap = Object.fromEntries(fatalitiesByState);
         const maxVal = d3.max(fatalitiesByState, d => d[1]);
-        
-        console.log("Max value for color scale:", maxVal);
         
         // Color scale
         const color = d3.scaleSequential(d3.interpolateReds).domain([0, maxVal]);
         
-        // Projection - keep map in upper portion, leave space for legend
+        // Geographic projection and path generator
         const projection = d3.geoAlbersUsa().fitSize([800, 480], us);
         const path = d3.geoPath().projection(projection);
         
@@ -225,7 +191,6 @@ function drawMap(fatalitiesByState) {
                     .attr("fill", function() {
                         const barData = d3.select(this).datum();
                         if (barData && barData[0] === state) {
-                            console.log("Found matching bar for:", state);
                             return "#ff6b35";
                         }
                         return "steelblue";
@@ -240,19 +205,19 @@ function drawMap(fatalitiesByState) {
                     });
             })
             .on("mouseout", function() {
-                // Reset state
+                // Reset map state styling
                 d3.select(this)
                     .attr("stroke", "#333")
                     .attr("stroke-width", "1px");
                     
-                // Reset bars
+                // Reset bar chart styling
                 d3.selectAll(".bar-rect")
                     .attr("fill", "steelblue")
                     .attr("stroke", "none")
                     .attr("stroke-width", "0px");
             });
             
-        // Add value labels to states
+        // Add animated value labels to map states
         svg.selectAll(".state-value")
             .data(us.features)
             .enter()
@@ -270,13 +235,9 @@ function drawMap(fatalitiesByState) {
                 if (value === undefined) return "";
                 return sortByPerCapita ? value.toFixed(1) : Math.round(value);
             });
-        console.log("State value labels added");
         
         // Add color legend
         drawColorLegend(svg, color, maxVal);
-        console.log("Color legend added");
-            
-        console.log("Map completed successfully!");
         
     }).catch(error => {
         console.error("Error loading map data:", error);
@@ -284,8 +245,6 @@ function drawMap(fatalitiesByState) {
 }
 
 function drawColorLegend(svg, color, maxVal) {
-    console.log("Drawing color legend...");
-    
     // Remove any existing legend
     svg.selectAll(".legend").remove();
     
@@ -294,9 +253,9 @@ function drawColorLegend(svg, color, maxVal) {
     const legendX = 300; // Center it horizontally
     const legendY = 520; // Move it below the map
     
-    // Create gradient definition
+    // Create color gradient for legend
     const defs = svg.select("defs").empty() ? svg.append("defs") : svg.select("defs");
-    defs.selectAll("#legend-gradient").remove(); // Remove existing gradient
+    defs.selectAll("#legend-gradient").remove();
     
     const gradient = defs.append("linearGradient")
         .attr("id", "legend-gradient")
@@ -346,18 +305,12 @@ function drawColorLegend(svg, color, maxVal) {
         .attr("fill", "#333")
         .attr("font-weight", "bold")
         .text(sortByPerCapita ? "Fatalities per 100k population" : "Total fatalities");
-    
-    console.log("Color legend drawn successfully");
 }
 
-// Button handler
+// Toggle button handler for switching between absolute and per-capita views
 document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM loaded, setting up button...");
     document.getElementById("toggle-per-capita").onclick = function() {
-        console.log("Button clicked! Current sortByPerCapita:", sortByPerCapita);
         sortByPerCapita = !sortByPerCapita;
-        console.log("New sortByPerCapita:", sortByPerCapita);
-        drawSimpleChart(cachedData2023);
+        drawInteractiveChart(cachedData2023);
     };
-    console.log("Button setup complete");
 });
