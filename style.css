@@ -1,0 +1,28 @@
+.header {
+    margin: 0;
+    text-align: center;
+    width: 100%;
+}
+
+#chart-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Distribute space between chart and button */
+    gap: 10px; /* Add spacing between chart and button */
+    padding-top: 60px; /* Add enough space for the button */
+    position: relative;
+}
+
+#toggle-per-capita {
+    position: absolute;
+    top: 10px; /* Position the button at the top of the container */
+    left: 50%; /* Center the button horizontally */
+    transform: translateX(-50%);
+    z-index: 10; /* Ensure it appears above other elements */
+}
+
+#bar-chart {
+    flex: 1; 
+    margin: 0; 
+    order: 1; 
+}

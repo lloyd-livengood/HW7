@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "d3": "^7.9.0"
-  }
+  },
+  "scripts": {
+    "start": "npx live-server --port=8000 --host=localhost --open=/ --cors --verbose"
+  } 
 }
